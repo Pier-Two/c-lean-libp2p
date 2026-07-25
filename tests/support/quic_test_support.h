@@ -44,10 +44,12 @@ typedef struct
     libp2p_quic_stream_t *incoming_stream;
     libp2p_quic_stream_t *readable_stream;
     libp2p_quic_stream_t *writable_stream;
+    libp2p_quic_stream_t *reset_stream;
     libp2p_quic_stream_t *closed_stream;
     size_t established_count;
     size_t readable_count;
     size_t writable_count;
+    size_t reset_stream_count;
     size_t closed_conn_count;
     size_t closed_stream_count;
     uint64_t last_app_error_code;
@@ -408,6 +410,12 @@ static inline void quic_test_drain_events(
         {
             events->writable_stream = event.stream;
             events->writable_count++;
+        }
+        else if (event.type == LIBP2P_QUIC_EVENT_STREAM_RESET)
+        {
+            events->reset_stream = event.stream;
+            events->reset_stream_count++;
+            events->last_app_error_code = event.app_error_code;
         }
         else if (event.type == LIBP2P_QUIC_EVENT_STREAM_CLOSED)
         {

@@ -493,7 +493,10 @@ libp2p_host_err_t gossipsub_protocol_on_event(
             (void)memcpy((void *)&stream_state, (const void *)&user_data, sizeof user_data);
             if (stream_state == NULL)
             {
-                result = LIBP2P_GOSSIPSUB_ERR_STATE;
+                result = ((kind == LIBP2P_HOST_PROTOCOL_EVENT_RESET) ||
+                          (kind == LIBP2P_HOST_PROTOCOL_EVENT_CLOSED))
+                             ? LIBP2P_GOSSIPSUB_OK
+                             : LIBP2P_GOSSIPSUB_ERR_STATE;
             }
         }
     }
@@ -512,9 +515,10 @@ libp2p_host_err_t gossipsub_protocol_on_event(
         }
     }
     else if (
-        (result == LIBP2P_GOSSIPSUB_OK) &&
+        (result == LIBP2P_GOSSIPSUB_OK) && (stream_state != NULL) &&
         ((kind == LIBP2P_HOST_PROTOCOL_EVENT_RESET) || (kind == LIBP2P_HOST_PROTOCOL_EVENT_CLOSED)))
     {
+        (void)libp2p_host_stream_set_user_data(stream, NULL);
         if (gossipsub->peers[stream_state->peer_index].stream == stream_state->stream)
         {
             event.type = LIBP2P_GOSSIPSUB_EVENT_PEER_CLOSED;
@@ -528,6 +532,10 @@ libp2p_host_err_t gossipsub_protocol_on_event(
             gossipsub_mesh_remove_peer(gossipsub, stream_state->peer_index);
             gossipsub->peers[stream_state->peer_index].stream = NULL;
             gossipsub->peers[stream_state->peer_index].tx_transport_busy = 0U;
+        }
+        if (kind == LIBP2P_HOST_PROTOCOL_EVENT_RESET)
+        {
+            (void)libp2p_host_stream_reset(host, stream, 0U);
         }
         gossipsub_stream_rx_reset(gossipsub, stream_state);
         stream_state->state = GOSSIPSUB_STREAM_FREE;

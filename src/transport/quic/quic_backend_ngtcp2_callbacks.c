@@ -358,9 +358,10 @@ static int quic_backend_recv_stream_data_cb(
         if ((flags & NGTCP2_STREAM_DATA_FLAG_FIN) != 0U)
         {
             stream->remote_fin = 1U;
-            if (stream->local_fin_sent != 0U)
+            if ((stream->local_fin_sent != 0U) || (stream->local_reset != 0U))
             {
-                stream->state = LIBP2P_QUIC_STREAM_CLOSED;
+                stream->state = (stream->local_reset != 0U) ? LIBP2P_QUIC_STREAM_RESET
+                                                            : LIBP2P_QUIC_STREAM_CLOSED;
             }
             else
             {
@@ -441,13 +442,11 @@ static int quic_backend_stream_close_cb(
         if ((flags & NGTCP2_STREAM_CLOSE_FLAG_APP_ERROR_CODE_SET) != 0U)
         {
             stream->state = LIBP2P_QUIC_STREAM_RESET;
-            stream->reset = 1U;
             event_error_code = app_error_code;
         }
         else
         {
             stream->state = LIBP2P_QUIC_STREAM_CLOSED;
-            stream->reset = 0U;
         }
         if ((stream->incoming != 0U) && (opened_stream != 0) && ngtcp2_is_bidi_stream(stream_id))
         {
@@ -519,14 +518,15 @@ static int quic_backend_stream_reset_cb(
     }
     if ((result == 0) && (stream != NULL))
     {
-        quic_backend_stream_discard_tx(stream);
-        stream->state = LIBP2P_QUIC_STREAM_RESET;
-        stream->reset = 1U;
+        stream->remote_reset = 1U;
+        stream->state = ((stream->local_fin_sent != 0U) || (stream->local_reset != 0U))
+                            ? LIBP2P_QUIC_STREAM_RESET
+                            : LIBP2P_QUIC_STREAM_HALF_CLOSED_REMOTE;
     }
 
     if ((result == 0) && (quic_backend_event_push(
                               conn->endpoint,
-                              LIBP2P_QUIC_EVENT_STREAM_CLOSED,
+                              LIBP2P_QUIC_EVENT_STREAM_RESET,
                               conn,
                               stream,
                               app_error_code,

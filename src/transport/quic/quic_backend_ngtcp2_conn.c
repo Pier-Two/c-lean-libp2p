@@ -1071,9 +1071,10 @@ QUIC_BACKEND_INTERNAL libp2p_quic_err_t quic_backend_write_conn_datagram(
                     (stream->tx_sent_len == stream->tx_len))
                 {
                     stream->local_fin_sent = 1U;
-                    if (stream->remote_fin != 0U)
+                    if ((stream->remote_fin != 0U) || (stream->remote_reset != 0U))
                     {
-                        stream->state = LIBP2P_QUIC_STREAM_CLOSED;
+                        stream->state = (stream->remote_reset != 0U) ? LIBP2P_QUIC_STREAM_RESET
+                                                                     : LIBP2P_QUIC_STREAM_CLOSED;
                     }
                     else
                     {

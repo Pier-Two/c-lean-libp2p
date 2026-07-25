@@ -639,7 +639,9 @@ static libp2p_host_err_t identify_fail_stream(
         slot->state = LIBP2P_IDENTIFY_SLOT_EVENTED;
         if ((host != NULL) && (slot->stream != NULL))
         {
+            (void)libp2p_host_stream_set_user_data(slot->stream, NULL);
             (void)libp2p_host_stream_reset(host, slot->stream, 0U);
+            slot->stream = NULL;
         }
     }
 

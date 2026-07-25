@@ -296,7 +296,9 @@ static libp2p_host_err_t ping_fail_stream(
         slot->state = LIBP2P_PING_SLOT_EVENTED;
         if ((host != NULL) && (slot->stream != NULL))
         {
+            (void)libp2p_host_stream_set_user_data(slot->stream, NULL);
             (void)libp2p_host_stream_reset(host, slot->stream, 0U);
+            slot->stream = NULL;
         }
     }
 
@@ -638,9 +640,16 @@ static libp2p_host_err_t ping_on_event(
     libp2p_host_err_t result = LIBP2P_HOST_OK;
 
     slot = ping_find_stream(ping, stream, &slot_index);
-    if ((host == NULL) || (stream == NULL) || (ping == NULL) || (slot == NULL))
+    if ((host == NULL) || (stream == NULL) || (ping == NULL))
     {
         result = LIBP2P_HOST_ERR_INVALID_ARG;
+    }
+    else if (slot == NULL)
+    {
+        result = ((kind == LIBP2P_HOST_PROTOCOL_EVENT_RESET) ||
+                  (kind == LIBP2P_HOST_PROTOCOL_EVENT_CLOSED))
+                     ? LIBP2P_HOST_OK
+                     : LIBP2P_HOST_ERR_INVALID_ARG;
     }
     else if (libp2p_host_stream_set_user_data(stream, slot) != LIBP2P_HOST_OK)
     {

@@ -120,7 +120,9 @@ typedef enum
 {
     LIBP2P_HOST_PROTOCOL_EVENT_READABLE,
     LIBP2P_HOST_PROTOCOL_EVENT_WRITABLE,
+    /** The peer reset its send side; the local send side remains usable until CLOSED. */
     LIBP2P_HOST_PROTOCOL_EVENT_RESET,
+    /** Both stream directions are terminal. */
     LIBP2P_HOST_PROTOCOL_EVENT_CLOSED
 } libp2p_host_protocol_event_kind_t;
 

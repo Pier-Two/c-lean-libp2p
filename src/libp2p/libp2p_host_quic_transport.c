@@ -270,6 +270,9 @@ static libp2p_host_transport_event_type_t host_quic_event_type(
     case LIBP2P_QUIC_SERVICE_EVENT_STREAM_WRITABLE:
         result = LIBP2P_HOST_TRANSPORT_EVENT_STREAM_WRITABLE;
         break;
+    case LIBP2P_QUIC_SERVICE_EVENT_STREAM_RESET:
+        result = LIBP2P_HOST_TRANSPORT_EVENT_STREAM_RESET;
+        break;
     case LIBP2P_QUIC_SERVICE_EVENT_STREAM_CLOSED:
         result = LIBP2P_HOST_TRANSPORT_EVENT_STREAM_CLOSED;
         break;

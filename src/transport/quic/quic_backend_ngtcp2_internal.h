@@ -61,9 +61,10 @@ struct libp2p_quic_stream
     uint8_t accepted;
     uint8_t remote_fin;
     uint8_t remote_fin_delivered;
+    uint8_t remote_reset;
     uint8_t local_fin_queued;
     uint8_t local_fin_sent;
-    uint8_t reset;
+    uint8_t local_reset;
     uint8_t *rx_data;
     size_t rx_len;
     size_t rx_read_offset;

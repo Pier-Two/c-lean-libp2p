@@ -130,7 +130,6 @@ libp2p_host_err_t host_protocol_event_one(
                         stream,
                         LIBP2P_HOST_PROTOCOL_EVENT_RESET,
                         result);
-                    host_stream_release(stream);
                 }
                 else if (stream->pending_closed != 0U)
                 {

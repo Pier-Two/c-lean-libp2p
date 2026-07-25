@@ -319,6 +319,71 @@ static void identify_test_mock_host_round_trip(void)
     free(storage);
 }
 
+static void identify_test_reset_then_closed_emits_once(void)
+{
+    libp2p_identify_config_t identify_config;
+    libp2p_identify_t identify;
+    libp2p_host_protocol_t protocol;
+    libp2p_host_config_t host_config;
+    host_test_transport_config_t transport_config;
+    host_test_transport_fixture_t fixture;
+    host_test_conn_t conn;
+    host_test_stream_t stream;
+    libp2p_host_t *host = NULL;
+    libp2p_host_conn_t *host_conn = NULL;
+    libp2p_host_stream_open_t *open = NULL;
+    libp2p_host_drive_result_t result;
+    libp2p_host_event_t host_event;
+    libp2p_identify_event_t identify_event;
+    void *storage = NULL;
+
+    (void)memset(&stream, 0, sizeof(stream));
+    assert(libp2p_identify_config_default(&identify_config) == LIBP2P_IDENTIFY_OK);
+    identify_test_message(&identify_config.local_message);
+    assert(libp2p_identify_init(&identify, &identify_config) == LIBP2P_IDENTIFY_OK);
+    assert(libp2p_identify_protocol(&identify, &protocol) == LIBP2P_IDENTIFY_OK);
+    host = identify_test_init_mock(&host_config, &transport_config, &fixture, &conn, &storage);
+    assert(libp2p_host_handle(host, &protocol) == LIBP2P_HOST_OK);
+    assert(libp2p_host_start(host) == LIBP2P_HOST_OK);
+    identify_test_establish_mock_conn(host, &fixture, &conn, &host_conn);
+
+    host_test_stream_add_message(
+        &stream,
+        (const uint8_t *)LIBP2P_MULTISTREAM_SELECT_PROTOCOL_ID,
+        LIBP2P_MULTISTREAM_SELECT_PROTOCOL_ID_LEN);
+    host_test_stream_add_message(
+        &stream,
+        (const uint8_t *)LIBP2P_IDENTIFY_PROTOCOL_ID,
+        LIBP2P_IDENTIFY_PROTOCOL_ID_LEN);
+    fixture.next_stream = &stream;
+    assert(
+        libp2p_identify_query(&identify, host, host_conn, &identify, &open) == LIBP2P_IDENTIFY_OK);
+    assert(libp2p_host_drive(host, 20U, LIBP2P_HOST_READY_APP, &result) == LIBP2P_HOST_OK);
+    assert(libp2p_host_next_event(host, &host_event) == LIBP2P_HOST_OK);
+    assert(host_event.type == LIBP2P_HOST_EVENT_STREAM_OPENED);
+
+    identify_test_push_stream_event(
+        &fixture,
+        &conn,
+        &stream,
+        LIBP2P_HOST_TRANSPORT_EVENT_STREAM_RESET);
+    assert(libp2p_host_drive(host, 21U, LIBP2P_HOST_READY_APP, &result) == LIBP2P_HOST_OK);
+    assert(stream.reset_count == 1U);
+    identify_test_push_stream_event(
+        &fixture,
+        &conn,
+        &stream,
+        LIBP2P_HOST_TRANSPORT_EVENT_STREAM_CLOSED);
+    assert(libp2p_host_drive(host, 22U, LIBP2P_HOST_READY_APP, &result) == LIBP2P_HOST_OK);
+
+    assert(libp2p_identify_next_event(&identify, &identify_event) == LIBP2P_IDENTIFY_OK);
+    assert(identify_event.type == LIBP2P_IDENTIFY_EVENT_ERROR);
+    assert(libp2p_identify_next_event(&identify, &identify_event) == LIBP2P_IDENTIFY_ERR_STATE);
+
+    libp2p_host_deinit(host);
+    free(storage);
+}
+
 static void identify_test_loopback_message(
     libp2p_identify_message_t *message,
     const protocol_loopback_pair_t *pair,
@@ -472,6 +537,7 @@ int main(void)
 {
     identify_test_codec_paths();
     identify_test_mock_host_round_trip();
+    identify_test_reset_then_closed_emits_once();
     identify_test_quic_loopback();
     return 0;
 }

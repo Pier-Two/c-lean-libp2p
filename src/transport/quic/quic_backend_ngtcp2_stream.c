@@ -204,7 +204,9 @@ QUIC_BACKEND_INTERNAL libp2p_quic_err_t quic_backend_stream_read(
         result = LIBP2P_QUIC_ERR_INVALID_ARG;
     }
     else if (
-        (stream->state == LIBP2P_QUIC_STREAM_RESET) && (stream->rx_read_offset == stream->rx_len))
+        (stream->rx_read_offset == stream->rx_len) &&
+        ((stream->remote_reset != 0U) ||
+         ((stream->remote_fin != 0U) && (stream->remote_fin_delivered != 0U))))
     {
         result = LIBP2P_QUIC_ERR_CLOSED;
     }
@@ -417,7 +419,8 @@ QUIC_BACKEND_INTERNAL libp2p_quic_err_t quic_backend_stream_write(
     {
         result = LIBP2P_QUIC_ERR_INVALID_ARG;
     }
-    if ((result == LIBP2P_QUIC_OK) && (stream->local_fin_queued != 0U))
+    if ((result == LIBP2P_QUIC_OK) &&
+        ((stream->local_fin_queued != 0U) || (stream->local_reset != 0U)))
     {
         result = LIBP2P_QUIC_ERR_CLOSED;
     }
@@ -726,8 +729,10 @@ quic_backend_stream_reset(libp2p_quic_stream_t *stream, uint64_t app_error_code)
         else
         {
             quic_backend_stream_discard_tx(stream);
-            stream->state = LIBP2P_QUIC_STREAM_RESET;
-            stream->reset = 1U;
+            stream->local_reset = 1U;
+            stream->state = ((stream->remote_fin != 0U) || (stream->remote_reset != 0U))
+                                ? LIBP2P_QUIC_STREAM_RESET
+                                : LIBP2P_QUIC_STREAM_HALF_CLOSED_LOCAL;
             result = quic_backend_event_push(
                 stream->conn->endpoint,
                 LIBP2P_QUIC_EVENT_TX_DATAGRAM_READY,

@@ -752,6 +752,16 @@ static libp2p_quic_err_t quic_service_translate_event(
                 event->transport_error_code);
             break;
 
+        case LIBP2P_QUIC_EVENT_STREAM_RESET:
+            result = quic_service_event_push(
+                service,
+                LIBP2P_QUIC_SERVICE_EVENT_STREAM_RESET,
+                event->conn,
+                event->stream,
+                event->app_error_code,
+                event->transport_error_code);
+            break;
+
         case LIBP2P_QUIC_EVENT_STREAM_CLOSED:
             result = quic_service_event_push(
                 service,

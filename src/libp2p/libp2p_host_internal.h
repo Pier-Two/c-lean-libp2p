@@ -145,6 +145,7 @@ struct libp2p_host
     size_t dial_capacity;
     libp2p_host_stream_open_t *opens;
     size_t open_capacity;
+    size_t open_cursor;
     size_t negotiation_cursor;
     size_t protocol_cursor;
     uint8_t host_closed_event_queued;
@@ -226,10 +227,12 @@ libp2p_host_err_t host_stream_fail_negotiation(
     libp2p_host_t *host,
     libp2p_host_stream_t *stream,
     libp2p_host_err_t reason,
+    const libp2p_host_transport_event_t *termination_event,
     libp2p_host_drive_result_t *result);
 libp2p_host_err_t host_stream_open_retry_one(
     libp2p_host_t *host,
     libp2p_host_drive_result_t *result,
+    size_t *slots_checked,
     uint8_t *out_progress);
 libp2p_host_err_t host_map_peer_err(int peer_err);
 

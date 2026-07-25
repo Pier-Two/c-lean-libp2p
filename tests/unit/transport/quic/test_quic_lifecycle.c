@@ -186,8 +186,12 @@ static void quic_lifecycle_test_buffered_rx_terminal(
 
     assert(libp2p_quic_conn_open_bidi_stream(pair.client_conn, &client_stream) == LIBP2P_QUIC_OK);
     assert(
-        libp2p_quic_stream_write(client_stream, &request, sizeof(request), 1, &accepted) ==
-        LIBP2P_QUIC_OK);
+        libp2p_quic_stream_write(
+            client_stream,
+            &request,
+            sizeof(request),
+            (reset == 0) ? 1 : 0,
+            &accepted) == LIBP2P_QUIC_OK);
     assert(accepted == sizeof(request));
 
     for (round = 0U; (round < 1000U) && (server_stream == NULL); round++)
@@ -232,16 +236,21 @@ static void quic_lifecycle_test_buffered_rx_terminal(
         (void)memset(&client_events, 0, sizeof(client_events));
         assert(libp2p_quic_stream_reset(server_stream, app_error_code) == LIBP2P_QUIC_OK);
     }
-    for (round = 0U; (round < 1000U) && (client_events.closed_stream_count == 0U); round++)
+    for (round = 0U; (round < 1000U) && (((reset != 0) ? client_events.reset_stream_count
+                                                       : client_events.closed_stream_count) == 0U);
+         round++)
     {
         quic_test_pump(pair.client, pair.server, &pair.now_us);
         quic_test_drain_events(pair.client, &client_events);
         quic_test_drain_events(pair.server, &server_events);
     }
-    assert(client_events.closed_stream == client_stream);
+    assert(
+        ((reset != 0) ? client_events.reset_stream : client_events.closed_stream) == client_stream);
     assert(client_events.last_app_error_code == app_error_code);
     assert(libp2p_quic_stream_state(client_stream, &stream_state) == LIBP2P_QUIC_OK);
-    assert(stream_state == ((reset != 0) ? LIBP2P_QUIC_STREAM_RESET : LIBP2P_QUIC_STREAM_CLOSED));
+    assert(
+        stream_state ==
+        ((reset != 0) ? LIBP2P_QUIC_STREAM_HALF_CLOSED_REMOTE : LIBP2P_QUIC_STREAM_CLOSED));
 
     while (read_total < sizeof(response))
     {
@@ -271,7 +280,51 @@ static void quic_lifecycle_test_buffered_rx_terminal(
         assert(fin == 0);
     }
     assert(libp2p_quic_stream_state(client_stream, &stream_state) == LIBP2P_QUIC_OK);
-    assert(stream_state == ((reset != 0) ? LIBP2P_QUIC_STREAM_RESET : LIBP2P_QUIC_STREAM_CLOSED));
+    assert(
+        stream_state ==
+        ((reset != 0) ? LIBP2P_QUIC_STREAM_HALF_CLOSED_REMOTE : LIBP2P_QUIC_STREAM_CLOSED));
+
+    if (reset != 0)
+    {
+        static const uint8_t reply = 0x5AU;
+        static const uint8_t expected[] = {0xA5U, 0x5AU};
+        uint8_t server_buf[sizeof(expected)];
+        size_t server_read_len = 0U;
+
+        accepted = 0U;
+        assert(
+            libp2p_quic_stream_write(client_stream, &reply, sizeof(reply), 1, &accepted) ==
+            LIBP2P_QUIC_OK);
+        assert(accepted == sizeof(reply));
+        for (round = 0U; (round < 1000U) && ((server_stream->rx_len < sizeof(expected)) ||
+                                             (server_stream->remote_fin == 0U));
+             round++)
+        {
+            quic_test_pump(pair.client, pair.server, &pair.now_us);
+            quic_test_drain_events(pair.client, &client_events);
+            quic_test_drain_events(pair.server, &server_events);
+        }
+        fin = 0;
+        assert(
+            libp2p_quic_stream_read(
+                server_stream,
+                server_buf,
+                sizeof(server_buf),
+                &server_read_len,
+                &fin) == LIBP2P_QUIC_OK);
+        assert(server_read_len == sizeof(expected));
+        assert(memcmp(server_buf, expected, sizeof(expected)) == 0);
+        assert(fin != 0);
+        for (round = 0U; (round < 1000U) && (client_events.closed_stream_count == 0U); round++)
+        {
+            quic_test_pump(pair.client, pair.server, &pair.now_us);
+            quic_test_drain_events(pair.client, &client_events);
+            quic_test_drain_events(pair.server, &server_events);
+        }
+        assert(client_events.closed_stream == client_stream);
+        assert(libp2p_quic_stream_state(client_stream, &stream_state) == LIBP2P_QUIC_OK);
+        assert(stream_state == LIBP2P_QUIC_STREAM_RESET);
+    }
 
     quic_test_pair_deinit(&pair);
 }

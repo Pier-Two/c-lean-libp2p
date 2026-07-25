@@ -538,7 +538,7 @@ static libp2p_host_err_t host_stream_complete_negotiation(
 
     if (err != LIBP2P_HOST_OK)
     {
-        err = host_stream_fail_negotiation(host, stream, LIBP2P_HOST_ERR_PROTOCOL, result);
+        err = host_stream_fail_negotiation(host, stream, LIBP2P_HOST_ERR_PROTOCOL, NULL, result);
     }
     else if (
         (stream->direction == LIBP2P_HOST_STREAM_OUTBOUND) &&
@@ -576,6 +576,7 @@ libp2p_host_err_t host_stream_fail_negotiation(
     libp2p_host_t *host,
     libp2p_host_stream_t *stream,
     libp2p_host_err_t reason,
+    const libp2p_host_transport_event_t *termination_event,
     libp2p_host_drive_result_t *result)
 {
     libp2p_host_err_t err = LIBP2P_HOST_OK;
@@ -587,7 +588,12 @@ libp2p_host_err_t host_stream_fail_negotiation(
     else
     {
         stream->neg_state = HOST_NEG_FAILED;
-        (void)host->config.transport->stream_reset(host->transport, stream->transport_stream, 0U);
+        if ((termination_event == NULL) ||
+            (termination_event->type == LIBP2P_HOST_TRANSPORT_EVENT_STREAM_RESET))
+        {
+            (void)
+                host->config.transport->stream_reset(host->transport, stream->transport_stream, 0U);
+        }
         if ((stream->direction == LIBP2P_HOST_STREAM_OUTBOUND) &&
             (stream->outbound_fail_event_queued == 0U))
         {
@@ -598,6 +604,11 @@ libp2p_host_err_t host_stream_fail_negotiation(
             event.conn = stream->conn;
             event.stream_open = stream->open_attempt;
             event.reason = reason;
+            if (termination_event != NULL)
+            {
+                event.app_error_code = termination_event->app_error_code;
+                event.transport_error_code = termination_event->transport_error_code;
+            }
             if (stream->open_attempt != NULL)
             {
                 event.user_data = stream->open_attempt->user_data;
@@ -739,6 +750,7 @@ static libp2p_host_err_t host_stream_outbound_step(
                         host,
                         stream,
                         LIBP2P_HOST_ERR_UNSUPPORTED,
+                        NULL,
                         result);
                 }
             }
@@ -881,7 +893,8 @@ static libp2p_host_err_t host_stream_inbound_step(
 static libp2p_host_err_t host_stream_negotiation_step(
     libp2p_host_t *host,
     libp2p_host_stream_t *stream,
-    libp2p_host_drive_result_t *result)
+    libp2p_host_drive_result_t *result,
+    uint8_t *out_progress)
 {
     uint8_t made_progress = 0U;
     libp2p_host_err_t err = LIBP2P_HOST_OK;
@@ -905,15 +918,20 @@ static libp2p_host_err_t host_stream_negotiation_step(
     }
     else if (err != LIBP2P_HOST_OK)
     {
-        err = host_stream_fail_negotiation(host, stream, err, result);
+        *out_progress = 1U;
+        err = host_stream_fail_negotiation(host, stream, err, NULL, result);
     }
     else
     {
         err = LIBP2P_HOST_OK;
     }
-    if ((made_progress != 0U) && (result != NULL))
+    if (made_progress != 0U)
     {
-        result->made_progress = 1U;
+        *out_progress = 1U;
+        if (result != NULL)
+        {
+            result->made_progress = 1U;
+        }
     }
 
     return err;
@@ -942,8 +960,9 @@ libp2p_host_err_t host_stream_negotiation_one(
     {
         size_t checked = 0U;
 
-        while ((checked < host->stream_capacity) && (*out_progress == 0U) &&
-               (err == LIBP2P_HOST_OK))
+        while (
+            (checked < host->stream_capacity) && (*out_progress == 0U) && (err == LIBP2P_HOST_OK) &&
+            ((result == NULL) || (result->negotiation_steps < host->config.max_negotiation_steps)))
         {
             const size_t index = host->negotiation_cursor % host->stream_capacity;
             libp2p_host_stream_t *stream = &host->streams[index];
@@ -952,8 +971,7 @@ libp2p_host_err_t host_stream_negotiation_one(
             checked++;
             if (stream->state == HOST_STREAM_NEGOTIATING)
             {
-                *out_progress = 1U;
-                err = host_stream_negotiation_step(host, stream, result);
+                err = host_stream_negotiation_step(host, stream, result, out_progress);
             }
         }
     }
@@ -964,6 +982,7 @@ libp2p_host_err_t host_stream_negotiation_one(
 libp2p_host_err_t host_stream_open_retry_one(
     libp2p_host_t *host,
     libp2p_host_drive_result_t *result,
+    size_t *slots_checked,
     uint8_t *out_progress)
 {
     libp2p_host_err_t err = LIBP2P_HOST_OK;
@@ -972,18 +991,20 @@ libp2p_host_err_t host_stream_open_retry_one(
     {
         *out_progress = 0U;
     }
-    if ((host == NULL) || (out_progress == NULL))
+    if ((host == NULL) || (slots_checked == NULL) || (out_progress == NULL))
     {
         err = LIBP2P_HOST_ERR_INVALID_ARG;
     }
     else
     {
-        size_t index;
-
-        for (index = 0U; index < host->open_capacity; index++)
+        while ((*slots_checked < host->open_capacity) && (*out_progress == 0U) &&
+               (err == LIBP2P_HOST_OK))
         {
+            const size_t index = host->open_cursor % host->open_capacity;
             libp2p_host_stream_open_t *open = &host->opens[index];
 
+            host->open_cursor = (host->open_cursor + 1U) % host->open_capacity;
+            (*slots_checked)++;
             if (open->state == HOST_OPEN_WAIT_TRANSPORT)
             {
                 void *transport_stream = NULL;
@@ -1062,7 +1083,6 @@ libp2p_host_err_t host_stream_open_retry_one(
                         host_open_release(open);
                     }
                 }
-                break;
             }
         }
     }

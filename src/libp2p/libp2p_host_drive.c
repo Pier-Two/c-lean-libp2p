@@ -261,7 +261,7 @@ static libp2p_host_err_t host_transport_event_stream_mark(
         {
             if (stream->state == HOST_STREAM_NEGOTIATING)
             {
-                const libp2p_host_err_t reason = transport_event->reason == LIBP2P_HOST_OK
+                const libp2p_host_err_t reason = (transport_event->reason == LIBP2P_HOST_OK)
                                                      ? LIBP2P_HOST_ERR_CLOSED
                                                      : transport_event->reason;
                 err = host_stream_fail_negotiation(host, stream, reason, transport_event, result);
@@ -275,7 +275,7 @@ static libp2p_host_err_t host_transport_event_stream_mark(
         {
             if (stream->state == HOST_STREAM_NEGOTIATING)
             {
-                const libp2p_host_err_t reason = transport_event->reason == LIBP2P_HOST_OK
+                const libp2p_host_err_t reason = (transport_event->reason == LIBP2P_HOST_OK)
                                                      ? LIBP2P_HOST_ERR_CLOSED
                                                      : transport_event->reason;
                 err = host_stream_fail_negotiation(host, stream, reason, transport_event, result);

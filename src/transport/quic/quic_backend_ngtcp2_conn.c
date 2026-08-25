@@ -651,7 +651,6 @@ QUIC_BACKEND_INTERNAL libp2p_quic_conn_t *quic_backend_find_conn_by_packet(
     const libp2p_quic_rx_datagram_t *datagram)
 {
     ngtcp2_version_cid version_cid;
-    size_t conn_index = 0U;
     libp2p_quic_conn_t *result = NULL;
 
     (void)memset(&version_cid, 0, sizeof(version_cid));
@@ -661,7 +660,8 @@ QUIC_BACKEND_INTERNAL libp2p_quic_conn_t *quic_backend_find_conn_by_packet(
             datagram->data_len,
             QUIC_BACKEND_CONN_ID_BYTES) == 0)
     {
-        for (conn_index = 0U; (conn_index < endpoint->connection_count) && (result == NULL);
+        for (size_t conn_index = 0U;
+             (conn_index < endpoint->connection_count) && (result == NULL);
              conn_index++)
         {
             libp2p_quic_conn_t *conn = endpoint->connections[conn_index];

@@ -1180,6 +1180,85 @@ static void quic_endpoint_test_simultaneous_dial_accepts_inbound_initial(void)
     assert(0 && "simultaneous QUIC dials did not create both inbound server connections");
 }
 
+static void quic_endpoint_test_redial_same_tuple_uses_new_initial_dcid(void)
+{
+    enum
+    {
+        CLIENT_PORT = 30122,
+        SERVER_PORT = 30123
+    };
+    quic_endpoint_identity_fixture_t identity;
+    quic_endpoint_node_fixture_t first_client;
+    quic_endpoint_node_fixture_t second_client;
+    quic_endpoint_node_fixture_t server;
+    libp2p_quic_addr_t remote_addr;
+    libp2p_quic_dial_config_t dial_config;
+    libp2p_quic_conn_t *first_client_conn = NULL;
+    libp2p_quic_conn_t *second_client_conn = NULL;
+    libp2p_quic_conn_t *first_server_conn = NULL;
+    libp2p_quic_conn_t *second_server_conn = NULL;
+    libp2p_quic_conn_state_t first_server_state = LIBP2P_QUIC_CONN_IDLE;
+    libp2p_quic_time_us_t now_us = 0U;
+    uint8_t ip4[4] = {127U, 0U, 0U, 1U};
+
+    quic_endpoint_make_identity(&identity, 43U);
+    quic_endpoint_init_node(
+        &first_client,
+        LIBP2P_QUIC_ROLE_CLIENT,
+        (uint16_t)CLIENT_PORT,
+        &identity.identity,
+        17U);
+    quic_endpoint_init_node(
+        &server,
+        LIBP2P_QUIC_ROLE_SERVER,
+        (uint16_t)SERVER_PORT,
+        &identity.identity,
+        89U);
+
+    assert(libp2p_quic_addr_from_ip4(ip4, (uint16_t)SERVER_PORT, &remote_addr) == LIBP2P_QUIC_OK);
+    assert(
+        libp2p_quic_addr_set_peer_id(&remote_addr, identity.peer_id, identity.peer_id_len) ==
+        LIBP2P_QUIC_OK);
+    dial_config.remote_addr = remote_addr;
+    dial_config.user_data = NULL;
+
+    assert(
+        libp2p_quic_endpoint_dial(first_client.endpoint, &dial_config, &first_client_conn) ==
+        LIBP2P_QUIC_OK);
+    quic_endpoint_wait_established(
+        first_client.endpoint,
+        server.endpoint,
+        first_client_conn,
+        &first_server_conn,
+        &now_us);
+
+    /* Simulate a client restart without allowing the server-side connection to expire. */
+    quic_endpoint_deinit_node(&first_client);
+    quic_endpoint_init_node(
+        &second_client,
+        LIBP2P_QUIC_ROLE_CLIENT,
+        (uint16_t)CLIENT_PORT,
+        &identity.identity,
+        151U);
+
+    assert(
+        libp2p_quic_endpoint_dial(second_client.endpoint, &dial_config, &second_client_conn) ==
+        LIBP2P_QUIC_OK);
+    quic_endpoint_wait_established(
+        second_client.endpoint,
+        server.endpoint,
+        second_client_conn,
+        &second_server_conn,
+        &now_us);
+
+    assert(second_server_conn != first_server_conn);
+    assert(libp2p_quic_conn_state(first_server_conn, &first_server_state) == LIBP2P_QUIC_OK);
+    assert(first_server_state == LIBP2P_QUIC_CONN_ESTABLISHED);
+
+    quic_endpoint_deinit_node(&second_client);
+    quic_endpoint_deinit_node(&server);
+}
+
 static uint16_t quic_endpoint_next_tx_port(
     libp2p_quic_endpoint_t *endpoint,
     libp2p_quic_time_us_t now_us)
@@ -1312,6 +1391,7 @@ int main(void)
     quic_endpoint_test_stream_write_backpressure();
     quic_endpoint_test_stream_write_reclaims_acked_bytes();
     quic_endpoint_test_simultaneous_dial_accepts_inbound_initial();
+    quic_endpoint_test_redial_same_tuple_uses_new_initial_dcid();
     quic_endpoint_test_tx_rotates_between_connections();
     return 0;
 }

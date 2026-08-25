@@ -103,6 +103,8 @@ struct libp2p_quic_conn
     uint8_t has_peer_identity;
     uint8_t expected_peer_id[LIBP2P_PEER_ID_MAX_BYTES];
     size_t expected_peer_id_len;
+    ngtcp2_cid initial_dcid;
+    uint8_t has_initial_dcid;
     ngtcp2_cid cids[QUIC_BACKEND_MAX_CONN_IDS_PER_CONN];
     size_t cid_count;
     quic_backend_stream_vec_t streams;

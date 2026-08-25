@@ -659,32 +659,32 @@ QUIC_BACKEND_INTERNAL libp2p_quic_conn_t *quic_backend_find_conn_by_packet(
             &version_cid,
             datagram->data,
             datagram->data_len,
-            QUIC_BACKEND_CONN_ID_BYTES) != 0)
+            QUIC_BACKEND_CONN_ID_BYTES) == 0)
     {
-        return NULL;
-    }
-
-    for (conn_index = 0U; (conn_index < endpoint->connection_count) && (result == NULL);
-         conn_index++)
-    {
-        libp2p_quic_conn_t *conn = endpoint->connections[conn_index];
-
-        if (conn != NULL)
+        for (conn_index = 0U; (conn_index < endpoint->connection_count) && (result == NULL);
+             conn_index++)
         {
-            if ((conn->has_initial_dcid != 0U) &&
-                (version_cid.dcidlen == conn->initial_dcid.datalen) &&
-                (memcmp(version_cid.dcid, conn->initial_dcid.data, version_cid.dcidlen) == 0))
+            libp2p_quic_conn_t *conn = endpoint->connections[conn_index];
+
+            if (conn != NULL)
             {
-                result = conn;
-            }
-            for (size_t cid_index = 0U; (cid_index < conn->cid_count) && (result == NULL);
-                 cid_index++)
-            {
-                if ((version_cid.dcidlen == conn->cids[cid_index].datalen) &&
-                    (memcmp(version_cid.dcid, conn->cids[cid_index].data, version_cid.dcidlen) ==
-                     0))
+                if ((conn->has_initial_dcid != 0U) &&
+                    (version_cid.dcidlen == conn->initial_dcid.datalen) &&
+                    (memcmp(version_cid.dcid, conn->initial_dcid.data, version_cid.dcidlen) == 0))
                 {
                     result = conn;
+                }
+                for (size_t cid_index = 0U; (cid_index < conn->cid_count) && (result == NULL);
+                     cid_index++)
+                {
+                    if ((version_cid.dcidlen == conn->cids[cid_index].datalen) &&
+                        (memcmp(
+                             version_cid.dcid,
+                             conn->cids[cid_index].data,
+                             version_cid.dcidlen) == 0))
+                    {
+                        result = conn;
+                    }
                 }
             }
         }

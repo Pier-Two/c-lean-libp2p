@@ -460,7 +460,8 @@ typedef enum
     LIBP2P_GOSSIPSUB_DROP_UNSUBSCRIBED_TOPIC,
     LIBP2P_GOSSIPSUB_DROP_VALIDATION_REJECTED,
     LIBP2P_GOSSIPSUB_DROP_TX_QUEUE_FULL,
-    LIBP2P_GOSSIPSUB_DROP_IDONTWANT_LIMIT
+    LIBP2P_GOSSIPSUB_DROP_IDONTWANT_LIMIT,
+    LIBP2P_GOSSIPSUB_DROP_IDONTWANT_TX_QUEUE_FULL
 } libp2p_gossipsub_drop_reason_t;
 
 /**
@@ -484,6 +485,8 @@ typedef struct
     libp2p_gossipsub_validation_t *validation;
     libp2p_gossipsub_drop_reason_t drop_reason;
     libp2p_gossipsub_err_t reason;
+    size_t tx_queue_depth;
+    size_t tx_queue_capacity;
     void *user_data;
 } libp2p_gossipsub_event_t;
 

@@ -103,6 +103,7 @@ typedef struct
     size_t tx_priority_tail;
     size_t tx_queue_depth;
     size_t tx_priority_depth;
+    uint8_t tx_queue_limit_reported;
     uint8_t tx_ready;
     uint8_t tx_transport_busy;
     uint64_t tx_last_writable_us;

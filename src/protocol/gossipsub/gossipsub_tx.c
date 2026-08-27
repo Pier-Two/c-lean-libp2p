@@ -777,6 +777,10 @@ void gossipsub_tx_remove(libp2p_gossipsub_t *gossipsub, size_t index)
             if (found != 0U)
             {
                 gossipsub_tx_recount_peer_queue(gossipsub, peer_index);
+                if (peer->tx_queue_depth < gossipsub->config.capacity.max_peer_tx_queue)
+                {
+                    peer->tx_queue_limit_reported = 0U;
+                }
             }
             if (peer->tx_queue_depth == 0U)
             {
@@ -1381,7 +1385,36 @@ libp2p_gossipsub_err_t gossipsub_enqueue_idontwant_for_received_entry(
                 (gossipsub->peers[peer_index].stream != NULL) &&
                 (gossipsub_mesh_contains(gossipsub, peer_index, topic_index) != 0))
             {
-                result = gossipsub_enqueue_idontwant_for_entry(gossipsub, peer_index, topic, entry);
+                const libp2p_gossipsub_err_t enqueue_result =
+                    gossipsub_enqueue_idontwant_for_entry(gossipsub, peer_index, topic, entry);
+
+                if (enqueue_result == LIBP2P_GOSSIPSUB_ERR_LIMIT)
+                {
+                    if (gossipsub->peers[peer_index].tx_queue_limit_reported == 0U)
+                    {
+                        libp2p_gossipsub_event_t event;
+
+                        (void)memset(&event, 0, sizeof(event));
+                        event.type = LIBP2P_GOSSIPSUB_EVENT_DROPPED;
+                        event.drop_reason = LIBP2P_GOSSIPSUB_DROP_IDONTWANT_TX_QUEUE_FULL;
+                        event.reason = enqueue_result;
+                        event.topic.data = topic->topic;
+                        event.topic.len = topic->topic_len;
+                        event.message_id.data = entry->message_id;
+                        event.message_id.len = entry->message_id_len;
+                        event.tx_queue_depth = gossipsub->peers[peer_index].tx_queue_depth;
+                        event.tx_queue_capacity = gossipsub->config.capacity.max_peer_tx_queue;
+                        gossipsub_peer_to_event(&gossipsub->peers[peer_index], &event);
+                        if (gossipsub_event_push(gossipsub, &event) == LIBP2P_GOSSIPSUB_OK)
+                        {
+                            gossipsub->peers[peer_index].tx_queue_limit_reported = 1U;
+                        }
+                    }
+                }
+                else
+                {
+                    result = enqueue_result;
+                }
             }
         }
     }

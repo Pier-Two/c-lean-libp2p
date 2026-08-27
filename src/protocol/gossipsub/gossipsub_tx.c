@@ -1381,7 +1381,13 @@ libp2p_gossipsub_err_t gossipsub_enqueue_idontwant_for_received_entry(
                 (gossipsub->peers[peer_index].stream != NULL) &&
                 (gossipsub_mesh_contains(gossipsub, peer_index, topic_index) != 0))
             {
-                result = gossipsub_enqueue_idontwant_for_entry(gossipsub, peer_index, topic, entry);
+                const libp2p_gossipsub_err_t enqueue_result =
+                    gossipsub_enqueue_idontwant_for_entry(gossipsub, peer_index, topic, entry);
+
+                if (enqueue_result != LIBP2P_GOSSIPSUB_ERR_LIMIT)
+                {
+                    result = enqueue_result;
+                }
             }
         }
     }

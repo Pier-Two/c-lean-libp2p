@@ -2055,6 +2055,7 @@ static void gossipsub_test_received_idontwant_tolerates_full_peer_queue(void)
     libp2p_gossipsub_bytes_t data_bytes;
     gossipsub_topic_state_t *topic_state = NULL;
     gossipsub_mcache_entry_t *entry = NULL;
+    libp2p_gossipsub_event_t event;
     void *storage = NULL;
     size_t storage_len = 0U;
     size_t topic_index = 0U;
@@ -2104,6 +2105,21 @@ static void gossipsub_test_received_idontwant_tolerates_full_peer_queue(void)
     assert(gossipsub->peers[0U].idontwant_sent_this_heartbeat == 0U);
     assert(gossipsub->peers[1U].tx_queue_depth == 1U);
     assert(gossipsub->peers[1U].idontwant_sent_this_heartbeat == 1U);
+    assert(libp2p_gossipsub_next_event(gossipsub, &event) == LIBP2P_GOSSIPSUB_OK);
+    assert(event.type == LIBP2P_GOSSIPSUB_EVENT_DROPPED);
+    assert(event.drop_reason == LIBP2P_GOSSIPSUB_DROP_IDONTWANT_TX_QUEUE_FULL);
+    assert(event.reason == LIBP2P_GOSSIPSUB_ERR_LIMIT);
+    assert(event.tx_queue_depth == 1U);
+    assert(event.tx_queue_capacity == 1U);
+    assert(
+        gossipsub_enqueue_idontwant_for_received_entry(gossipsub, topic_state, entry) ==
+        LIBP2P_GOSSIPSUB_OK);
+    assert(libp2p_gossipsub_next_event(gossipsub, &event) == LIBP2P_GOSSIPSUB_OK);
+    assert(event.drop_reason == LIBP2P_GOSSIPSUB_DROP_IDONTWANT_TX_QUEUE_FULL);
+    assert(
+        gossipsub_enqueue_idontwant_for_received_entry(gossipsub, topic_state, entry) ==
+        LIBP2P_GOSSIPSUB_OK);
+    assert(libp2p_gossipsub_next_event(gossipsub, &event) == LIBP2P_GOSSIPSUB_ERR_WOULD_BLOCK);
 
     (void)mcache_index;
     libp2p_gossipsub_deinit(gossipsub);

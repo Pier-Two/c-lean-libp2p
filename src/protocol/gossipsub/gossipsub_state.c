@@ -42,7 +42,7 @@ libp2p_gossipsub_err_t gossipsub_push_event_or_drop(
 
     if (result == LIBP2P_GOSSIPSUB_ERR_WOULD_BLOCK)
     {
-        gossipsub_release_validation(event != NULL ? event->validation : NULL);
+        gossipsub_release_validation((event != NULL) ? event->validation : NULL);
         result = LIBP2P_GOSSIPSUB_OK;
     }
 
@@ -51,7 +51,7 @@ libp2p_gossipsub_err_t gossipsub_push_event_or_drop(
 
 libp2p_gossipsub_err_t gossipsub_continue_after_local_limit(libp2p_gossipsub_err_t result)
 {
-    return result == LIBP2P_GOSSIPSUB_ERR_LIMIT ? LIBP2P_GOSSIPSUB_OK : result;
+    return (result == LIBP2P_GOSSIPSUB_ERR_LIMIT) ? LIBP2P_GOSSIPSUB_OK : result;
 }
 
 void gossipsub_peer_to_event(const gossipsub_peer_state_t *peer, libp2p_gossipsub_event_t *event)

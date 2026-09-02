@@ -513,12 +513,9 @@ libp2p_gossipsub_err_t gossipsub_process_message(
         {
             event.validation =
                 gossipsub_alloc_validation(gossipsub, peer_index, mcache_index, now_us);
-            if (event.validation == NULL)
-            {
-                return LIBP2P_GOSSIPSUB_OK;
-            }
         }
-        if (result == LIBP2P_GOSSIPSUB_OK)
+        if ((topic->validation_mode != LIBP2P_GOSSIPSUB_VALIDATION_REQUIRE_APP) ||
+            (event.validation != NULL))
         {
             result = gossipsub_push_event_or_drop(gossipsub, &event);
         }

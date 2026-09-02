@@ -437,7 +437,12 @@ typedef struct
     size_t peer_info_capacity;
 } libp2p_gossipsub_rpc_decode_storage_t;
 
-/** Public events drained after host and gossipsub drive calls. */
+/**
+ * Public events drained after host and gossipsub drive calls.
+ *
+ * New events are dropped when the bounded event queue is full. A dropped
+ * MESSAGE event releases its validation slot and does not reset the stream.
+ */
 typedef enum
 {
     LIBP2P_GOSSIPSUB_EVENT_NONE = 0,

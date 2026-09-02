@@ -185,7 +185,7 @@ void gossipsub_heartbeat(libp2p_gossipsub_t *gossipsub, uint64_t now_us)
             if ((gossipsub->validations[index].state == GOSSIPSUB_VALIDATION_PENDING) &&
                 (gossipsub->validations[index].expires_us < now_us))
             {
-                gossipsub->validations[index].state = GOSSIPSUB_VALIDATION_FREE;
+                gossipsub_release_validation(&gossipsub->validations[index]);
             }
         }
         gossipsub->next_heartbeat_us = now_us + gossipsub->config.mesh.heartbeat_interval_us;
@@ -263,7 +263,7 @@ libp2p_gossipsub_err_t libp2p_gossipsub_handle_host_event(
                 gossipsub_peer_to_event(&gossipsub->peers[index], &gs_event);
                 gs_event.conn = NULL;
                 gs_event.stream = NULL;
-                (void)gossipsub_event_push(gossipsub, &gs_event);
+                (void)gossipsub_push_event_or_drop(gossipsub, &gs_event);
                 gossipsub_drop_queued_peer(gossipsub, index);
                 gossipsub_mesh_remove_peer(gossipsub, index);
                 gossipsub->peers[index].closed = 1U;
@@ -289,7 +289,7 @@ libp2p_gossipsub_err_t libp2p_gossipsub_handle_host_event(
         gs_event.type = LIBP2P_GOSSIPSUB_EVENT_PEER_FAILED;
         gs_event.conn = NULL;
         gs_event.reason = gossipsub_host_to_err(event->reason);
-        result = gossipsub_event_push(gossipsub, &gs_event);
+        result = gossipsub_push_event_or_drop(gossipsub, &gs_event);
     }
     else
     {
@@ -441,7 +441,7 @@ libp2p_host_err_t gossipsub_protocol_on_open(
         event.stream = stream;
         event.direction = direction;
         event.protocol_version = version;
-        result = gossipsub_event_push(gossipsub, &event);
+        result = gossipsub_push_event_or_drop(gossipsub, &event);
     }
     if ((result == LIBP2P_GOSSIPSUB_OK) && (selected_writer != 0U))
     {
@@ -457,6 +457,7 @@ libp2p_host_err_t gossipsub_protocol_on_open(
                     peer_index,
                     &gossipsub->topics[topic_index],
                     1U);
+                result = gossipsub_continue_after_local_limit(result);
             }
         }
     }
@@ -527,7 +528,7 @@ libp2p_host_err_t gossipsub_protocol_on_event(
             event.stream = NULL;
             event.direction = stream_state->direction;
             event.protocol_version = stream_state->version;
-            (void)gossipsub_event_push(gossipsub, &event);
+            (void)gossipsub_push_event_or_drop(gossipsub, &event);
             gossipsub_drop_queued_peer(gossipsub, stream_state->peer_index);
             gossipsub_mesh_remove_peer(gossipsub, stream_state->peer_index);
             gossipsub->peers[stream_state->peer_index].stream = NULL;

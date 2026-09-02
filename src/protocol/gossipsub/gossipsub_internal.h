@@ -529,6 +529,10 @@ libp2p_gossipsub_err_t gossipsub_storage_layout(
 libp2p_gossipsub_err_t gossipsub_event_push(
     libp2p_gossipsub_t *gossipsub,
     const libp2p_gossipsub_event_t *event);
+libp2p_gossipsub_err_t gossipsub_push_event_or_drop(
+    libp2p_gossipsub_t *gossipsub,
+    const libp2p_gossipsub_event_t *event);
+libp2p_gossipsub_err_t gossipsub_continue_after_local_limit(libp2p_gossipsub_err_t result);
 void gossipsub_peer_to_event(const gossipsub_peer_state_t *peer, libp2p_gossipsub_event_t *event);
 gossipsub_topic_state_t *gossipsub_find_topic(
     libp2p_gossipsub_t *gossipsub,
@@ -772,6 +776,7 @@ struct libp2p_gossipsub_validation *gossipsub_alloc_validation(
     size_t peer_index,
     size_t mcache_index,
     uint64_t now_us);
+void gossipsub_release_validation(libp2p_gossipsub_validation_t *validation);
 libp2p_gossipsub_err_t gossipsub_process_subscription(
     libp2p_gossipsub_t *gossipsub,
     size_t peer_index,

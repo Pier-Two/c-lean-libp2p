@@ -260,6 +260,7 @@ libp2p_gossipsub_err_t libp2p_gossipsub_report_validation(
 {
     const gossipsub_mcache_entry_t *entry = NULL;
     libp2p_gossipsub_err_t result = LIBP2P_GOSSIPSUB_OK;
+    uint8_t validation_consumed = 0U;
 
     if ((gossipsub == NULL) || (validation == NULL) ||
         (validation->state != GOSSIPSUB_VALIDATION_PENDING) ||
@@ -269,6 +270,7 @@ libp2p_gossipsub_err_t libp2p_gossipsub_report_validation(
     }
     else
     {
+        validation_consumed = 1U;
         entry = &gossipsub->mcache[validation->mcache_index];
         if (entry->used == 0U)
         {
@@ -279,9 +281,9 @@ libp2p_gossipsub_err_t libp2p_gossipsub_report_validation(
     {
         result = gossipsub_forward_entry(gossipsub, validation->peer_index, entry);
     }
-    if (result == LIBP2P_GOSSIPSUB_OK)
+    if (validation_consumed != 0U)
     {
-        validation->state = GOSSIPSUB_VALIDATION_FREE;
+        gossipsub_release_validation(validation);
     }
 
     return result;

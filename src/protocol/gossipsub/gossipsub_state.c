@@ -20,7 +20,7 @@ libp2p_gossipsub_err_t gossipsub_event_push(
     }
     else if (gossipsub->event_len == gossipsub->config.capacity.event_capacity)
     {
-        result = LIBP2P_GOSSIPSUB_ERR_LIMIT;
+        result = LIBP2P_GOSSIPSUB_ERR_WOULD_BLOCK;
     }
     else
     {
@@ -32,6 +32,26 @@ libp2p_gossipsub_err_t gossipsub_event_push(
     }
 
     return result;
+}
+
+libp2p_gossipsub_err_t gossipsub_push_event_or_drop(
+    libp2p_gossipsub_t *gossipsub,
+    const libp2p_gossipsub_event_t *event)
+{
+    libp2p_gossipsub_err_t result = gossipsub_event_push(gossipsub, event);
+
+    if (result == LIBP2P_GOSSIPSUB_ERR_WOULD_BLOCK)
+    {
+        gossipsub_release_validation(event != NULL ? event->validation : NULL);
+        result = LIBP2P_GOSSIPSUB_OK;
+    }
+
+    return result;
+}
+
+libp2p_gossipsub_err_t gossipsub_continue_after_local_limit(libp2p_gossipsub_err_t result)
+{
+    return result == LIBP2P_GOSSIPSUB_ERR_LIMIT ? LIBP2P_GOSSIPSUB_OK : result;
 }
 
 void gossipsub_peer_to_event(const gossipsub_peer_state_t *peer, libp2p_gossipsub_event_t *event)

@@ -237,7 +237,8 @@ static libp2p_host_err_t host_config_validate(const libp2p_host_config_t *config
         (config->listen_multiaddr_len == 0U) || (config->max_protocols == 0U) ||
         (config->max_connections == 0U) || (config->max_streams_per_conn == 0U) ||
         (config->max_pending_dials == 0U) || (config->max_pending_stream_opens == 0U) ||
-        (config->event_capacity == 0U) || (config->max_negotiation_steps == 0U))
+        (config->event_capacity <= config->max_pending_stream_opens) ||
+        (config->max_negotiation_steps == 0U))
     {
         result = LIBP2P_HOST_ERR_INVALID_ARG;
     }

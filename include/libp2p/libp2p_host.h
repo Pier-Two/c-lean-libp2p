@@ -346,7 +346,7 @@ typedef struct
     size_t max_streams_per_conn;
     size_t max_pending_dials;
     size_t max_pending_stream_opens;
-    size_t event_capacity;
+    size_t event_capacity; /**< Must exceed max_pending_stream_opens. */
     size_t max_negotiation_steps;
 } libp2p_host_config_t;
 

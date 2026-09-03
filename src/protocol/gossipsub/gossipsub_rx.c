@@ -392,7 +392,7 @@ libp2p_gossipsub_err_t gossipsub_process_subscription(
             gossipsub_peer_to_event(&gossipsub->peers[peer_index], &event);
             event.topic.data = topic->topic;
             event.topic.len = topic->topic_len;
-            result = gossipsub_event_push(gossipsub, &event);
+            result = gossipsub_push_event_or_drop(gossipsub, &event);
         }
     }
     if ((result == LIBP2P_GOSSIPSUB_OK) && (topic != NULL) && (sub->subscribe != 0U) &&
@@ -410,7 +410,7 @@ libp2p_gossipsub_err_t gossipsub_process_subscription(
         /* No mesh change is needed for this subscription update. */
     }
 
-    return result;
+    return gossipsub_continue_after_local_limit(result);
 }
 
 libp2p_gossipsub_err_t gossipsub_process_message(
@@ -453,7 +453,7 @@ libp2p_gossipsub_err_t gossipsub_process_message(
             gossipsub_peer_to_event(&gossipsub->peers[peer_index], &event);
             event.message_id.data = message_id;
             event.message_id.len = message_id_len;
-            result = gossipsub_event_push(gossipsub, &event);
+            result = gossipsub_push_event_or_drop(gossipsub, &event);
             if (result == LIBP2P_GOSSIPSUB_OK)
             {
                 result = LIBP2P_GOSSIPSUB_ERR_DUPLICATE;
@@ -482,7 +482,7 @@ libp2p_gossipsub_err_t gossipsub_process_message(
             event.topic = message->topic;
             event.message_id.data = message_id;
             event.message_id.len = message_id_len;
-            result = gossipsub_event_push(gossipsub, &event);
+            result = gossipsub_push_event_or_drop(gossipsub, &event);
         }
         else
         {
@@ -513,14 +513,11 @@ libp2p_gossipsub_err_t gossipsub_process_message(
         {
             event.validation =
                 gossipsub_alloc_validation(gossipsub, peer_index, mcache_index, now_us);
-            if (event.validation == NULL)
-            {
-                result = LIBP2P_GOSSIPSUB_ERR_LIMIT;
-            }
         }
-        if (result == LIBP2P_GOSSIPSUB_OK)
+        if ((topic->validation_mode != LIBP2P_GOSSIPSUB_VALIDATION_REQUIRE_APP) ||
+            (event.validation != NULL))
         {
-            result = gossipsub_event_push(gossipsub, &event);
+            result = gossipsub_push_event_or_drop(gossipsub, &event);
         }
         if ((result == LIBP2P_GOSSIPSUB_OK) &&
             (topic->validation_mode == LIBP2P_GOSSIPSUB_VALIDATION_ACCEPT_ALL))
@@ -529,7 +526,7 @@ libp2p_gossipsub_err_t gossipsub_process_message(
         }
     }
 
-    return result;
+    return gossipsub_continue_after_local_limit(result);
 }
 
 libp2p_gossipsub_err_t gossipsub_process_idontwant(
@@ -568,7 +565,7 @@ libp2p_gossipsub_err_t gossipsub_process_idontwant(
             gossipsub_peer_to_event(&gossipsub->peers[peer_index], &event);
             event.message_id = idontwant->message_ids[index];
             event.idontwant = *idontwant;
-            result = gossipsub_event_push(gossipsub, &event);
+            result = gossipsub_push_event_or_drop(gossipsub, &event);
         }
     }
 
@@ -676,6 +673,7 @@ libp2p_gossipsub_err_t gossipsub_process_rpc(
                         now_us);
                 }
             }
+            result = gossipsub_continue_after_local_limit(result);
         }
         for (size_t index = 0U;
              (result == LIBP2P_GOSSIPSUB_OK) && (index < rpc->control.prune_count);
@@ -699,6 +697,7 @@ libp2p_gossipsub_err_t gossipsub_process_rpc(
                         rpc->control.prune[index].backoff_seconds),
                     now_us);
             }
+            result = gossipsub_continue_after_local_limit(result);
         }
         for (size_t index = 0U;
              (result == LIBP2P_GOSSIPSUB_OK) && (index < rpc->control.iwant_count);
@@ -716,6 +715,7 @@ libp2p_gossipsub_err_t gossipsub_process_rpc(
                 if (entry != NULL)
                 {
                     result = gossipsub_enqueue_publish_entry(gossipsub, peer_index, entry);
+                    result = gossipsub_continue_after_local_limit(result);
                 }
             }
         }
@@ -737,6 +737,7 @@ libp2p_gossipsub_err_t gossipsub_process_rpc(
                         gossipsub,
                         peer_index,
                         &rpc->control.ihave[index].message_ids[id_index]);
+                    result = gossipsub_continue_after_local_limit(result);
                 }
             }
         }

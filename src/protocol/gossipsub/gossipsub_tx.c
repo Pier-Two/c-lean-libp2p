@@ -1405,7 +1405,9 @@ libp2p_gossipsub_err_t gossipsub_enqueue_idontwant_for_received_entry(
                         event.tx_queue_depth = gossipsub->peers[peer_index].tx_queue_depth;
                         event.tx_queue_capacity = gossipsub->config.capacity.max_peer_tx_queue;
                         gossipsub_peer_to_event(&gossipsub->peers[peer_index], &event);
-                        if (gossipsub_event_push(gossipsub, &event) == LIBP2P_GOSSIPSUB_OK)
+                        const libp2p_gossipsub_err_t event_result =
+                            gossipsub_push_event_or_drop(gossipsub, &event);
+                        if (event_result == LIBP2P_GOSSIPSUB_OK)
                         {
                             gossipsub->peers[peer_index].tx_queue_limit_reported = 1U;
                         }
@@ -1636,4 +1638,15 @@ struct libp2p_gossipsub_validation *gossipsub_alloc_validation(
     }
 
     return result;
+}
+
+void gossipsub_release_validation(libp2p_gossipsub_validation_t *validation)
+{
+    if (validation != NULL)
+    {
+        validation->state = GOSSIPSUB_VALIDATION_FREE;
+        validation->peer_index = 0U;
+        validation->mcache_index = 0U;
+        validation->expires_us = 0U;
+    }
 }

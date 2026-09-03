@@ -297,6 +297,85 @@ static void host_unit_test_dial_completion_and_conn_peer_id(void)
     free(storage);
 }
 
+static void host_unit_test_event_backpressure_preserves_lifecycle_slots(void)
+{
+    static const uint8_t addr[] = {9U};
+    libp2p_host_config_t config;
+    host_test_transport_config_t transport_config;
+    host_test_transport_fixture_t fixture;
+    host_test_conn_t conn;
+    libp2p_host_t *host = NULL;
+    libp2p_host_conn_t *host_conn = NULL;
+    libp2p_host_dial_t *dials[5];
+    libp2p_host_transport_event_t transport_event;
+    libp2p_host_event_t event;
+    libp2p_host_drive_result_t result;
+    size_t storage_len = 0U;
+    void *storage = NULL;
+
+    host_test_fixture_init(&fixture, &conn);
+    host_test_config_init(&config, &transport_config, &fixture, host_test_transport());
+    config.max_pending_dials = 5U;
+    config.event_capacity = 4U;
+    assert(libp2p_host_storage_size(&config, &storage_len) == LIBP2P_HOST_ERR_INVALID_ARG);
+    config.event_capacity = 5U;
+    assert(libp2p_host_storage_size(&config, &storage_len) == LIBP2P_HOST_OK);
+    storage = calloc(1U, storage_len);
+    assert(storage != NULL);
+    assert(libp2p_host_init(storage, storage_len, &config, &host) == LIBP2P_HOST_OK);
+    assert(libp2p_host_start(host) == LIBP2P_HOST_OK);
+    host_unit_establish_mock_conn(host, &fixture, &conn, &host_conn);
+
+    for (size_t index = 0U; index < 5U; index++)
+    {
+        dials[index] = NULL;
+        assert(
+            libp2p_host_dial(host, addr, sizeof(addr), NULL, &dials[index]) ==
+            LIBP2P_HOST_OK);
+        assert(dials[index] != NULL);
+
+        (void)memset(&transport_event, 0, sizeof(transport_event));
+        transport_event.type = LIBP2P_HOST_TRANSPORT_EVENT_DIAL_FAILED;
+        transport_event.attempt = &conn;
+        transport_event.reason = LIBP2P_HOST_ERR_CLOSED;
+        host_test_event_push(&fixture, &transport_event);
+    }
+
+    (void)memset(&transport_event, 0, sizeof(transport_event));
+    transport_event.type = LIBP2P_HOST_TRANSPORT_EVENT_CONN_CLOSED;
+    transport_event.conn = &conn;
+    transport_event.reason = LIBP2P_HOST_ERR_CLOSED;
+    host_test_event_push(&fixture, &transport_event);
+
+    for (size_t index = 0U; index < 5U; index++)
+    {
+        assert(libp2p_host_drive(host, index + 2U, LIBP2P_HOST_READY_APP, NULL) == LIBP2P_HOST_OK);
+        assert(libp2p_host_drive(host, index + 2U, LIBP2P_HOST_READY_APP, &result) == LIBP2P_HOST_OK);
+        assert(result.transport_events == 0U);
+        assert(libp2p_host_next_event(host, &event) == LIBP2P_HOST_OK);
+        assert(event.type == LIBP2P_HOST_EVENT_DIAL_FAILED);
+        assert(event.dial == dials[index]);
+    }
+
+    assert(libp2p_host_drive(host, 7U, LIBP2P_HOST_READY_APP, NULL) == LIBP2P_HOST_OK);
+    assert(libp2p_host_next_event(host, &event) == LIBP2P_HOST_OK);
+    assert(event.type == LIBP2P_HOST_EVENT_CONN_CLOSED);
+    assert(event.conn == host_conn);
+    assert(fixture.release_count == 1U);
+
+    for (size_t index = 0U; index < 5U; index++)
+    {
+        dials[index] = NULL;
+        assert(
+            libp2p_host_dial(host, addr, sizeof(addr), NULL, &dials[index]) ==
+            LIBP2P_HOST_OK);
+        assert(dials[index] != NULL);
+    }
+
+    libp2p_host_deinit(host);
+    free(storage);
+}
+
 static void host_unit_test_outbound_stream_negotiation_and_events(void)
 {
     static const uint8_t ping[] = "/ipfs/ping/1.0.0";
@@ -1449,6 +1528,7 @@ int main(void)
     host_unit_test_protocol_registration_bounds();
     host_unit_test_invalid_config();
     host_unit_test_dial_completion_and_conn_peer_id();
+    host_unit_test_event_backpressure_preserves_lifecycle_slots();
     host_unit_test_outbound_stream_negotiation_and_events();
     host_unit_test_outbound_stream_resources_reused_after_close();
     host_unit_test_outbound_stream_open_cancel();

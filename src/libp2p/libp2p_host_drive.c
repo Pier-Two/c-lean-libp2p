@@ -362,6 +362,12 @@ static libp2p_host_err_t host_transport_event_one(
     return err;
 }
 
+static int host_transport_event_capacity_available(const libp2p_host_t *host)
+{
+    /* A connection close can fail every pending open before emitting its close event. */
+    return (host->event_capacity - host->event_len) > host->open_capacity;
+}
+
 static int host_has_active_work(const libp2p_host_t *host)
 {
     int active = 0;
@@ -448,7 +454,7 @@ libp2p_host_err_t libp2p_host_drive(
     {
         err = LIBP2P_HOST_ERR_INVALID_ARG;
     }
-    if (err == LIBP2P_HOST_OK)
+    if ((err == LIBP2P_HOST_OK) && (host_transport_event_capacity_available(host) != 0))
     {
         err = host->config.transport->drive(host->transport, now_us, ready);
     }
@@ -471,8 +477,12 @@ libp2p_host_err_t libp2p_host_drive(
             loop_progress = 0U;
             guard++;
 
-            err = host_transport_event_one(host, &local_result, &transport_progress);
-            if ((err == LIBP2P_HOST_OK) && (open_slots_checked < host->open_capacity))
+            if (host_transport_event_capacity_available(host) != 0)
+            {
+                err = host_transport_event_one(host, &local_result, &transport_progress);
+            }
+            if ((err == LIBP2P_HOST_OK) && (host->event_len < host->event_capacity) &&
+                (open_slots_checked < host->open_capacity))
             {
                 err = host_stream_open_retry_one(
                     host,
@@ -480,7 +490,7 @@ libp2p_host_err_t libp2p_host_drive(
                     &open_slots_checked,
                     &open_progress);
             }
-            if ((err == LIBP2P_HOST_OK) &&
+            if ((err == LIBP2P_HOST_OK) && (host->event_len < host->event_capacity) &&
                 (local_result.negotiation_steps < host->config.max_negotiation_steps))
             {
                 err = host_stream_negotiation_one(host, &local_result, &negotiation_progress);
@@ -493,7 +503,7 @@ libp2p_host_err_t libp2p_host_drive(
             {
                 err = host_conn_recycle_quiet(host);
             }
-            if (err == LIBP2P_HOST_OK)
+            if ((err == LIBP2P_HOST_OK) && (host->event_len < host->event_capacity))
             {
                 err = host_close_maybe_complete(host, &local_result, &close_progress);
             }

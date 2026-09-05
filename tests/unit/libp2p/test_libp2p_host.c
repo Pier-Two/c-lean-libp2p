@@ -1054,8 +1054,11 @@ static void host_unit_test_connection_close_origin_and_codes(void)
     host_unit_check_connection_close_event(0U);
 }
 
-static void host_unit_test_closed_conn_recycles_slot_and_rejects_stale_accessors(void)
+static void host_unit_check_closed_conn_recycles_slot(libp2p_host_err_t open_result)
 {
+    static const uint8_t ping[] = "/ipfs/ping/1.0.0";
+    host_unit_protocol_state_t state;
+    libp2p_host_protocol_t protocol;
     libp2p_host_config_t config;
     host_test_transport_config_t transport_config;
     host_test_transport_fixture_t fixture;
@@ -1083,10 +1086,24 @@ static void host_unit_test_closed_conn_recycles_slot_and_rejects_stale_accessors
     storage = calloc(1U, storage_len);
     assert(storage != NULL);
     assert(libp2p_host_init(storage, storage_len, &config, &host) == LIBP2P_HOST_OK);
+    (void)memset(&state, 0, sizeof(state));
+    host_unit_make_protocol(&protocol, ping, sizeof(ping) - 1U, &state);
+    assert(libp2p_host_handle(host, &protocol) == LIBP2P_HOST_OK);
     assert(libp2p_host_start(host) == LIBP2P_HOST_OK);
 
     host_unit_establish_mock_conn(host, &fixture, &conn1, &host_conn1);
     assert(host_conn1 != NULL);
+
+    if (open_result != LIBP2P_HOST_OK)
+    {
+        libp2p_host_stream_open_t *open = NULL;
+
+        fixture.open_stream_result = open_result;
+        assert(
+            libp2p_host_open_stream(
+                host, host_conn1, ping, sizeof(ping) - 1U, NULL, &open) == open_result);
+        assert(open == NULL);
+    }
 
     (void)memset(&transport_event, 0, sizeof(transport_event));
     transport_event.type = LIBP2P_HOST_TRANSPORT_EVENT_CONN_CLOSED;
@@ -1111,6 +1128,14 @@ static void host_unit_test_closed_conn_recycles_slot_and_rejects_stale_accessors
 
     libp2p_host_deinit(host);
     free(storage);
+}
+
+static void host_unit_test_closed_conn_recycles_slot_and_rejects_stale_accessors(void)
+{
+    host_unit_check_closed_conn_recycles_slot(LIBP2P_HOST_OK);
+    host_unit_check_closed_conn_recycles_slot(LIBP2P_HOST_ERR_CLOSED);
+    host_unit_check_closed_conn_recycles_slot(LIBP2P_HOST_ERR_LIMIT);
+    host_unit_check_closed_conn_recycles_slot(LIBP2P_HOST_ERR_TRANSPORT);
 }
 
 static void host_unit_test_conn_for_peer_id_skips_closed_duplicate(void)

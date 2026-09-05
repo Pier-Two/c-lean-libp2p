@@ -1155,6 +1155,7 @@ static libp2p_host_err_t host_open_stream_with_optional_fallback(
         open->protocol = protocol;
         open->fallback_protocol = fallback_protocol;
         open->user_data = user_data;
+        open->state = HOST_OPEN_WAIT_TRANSPORT;
         conn->open_count++;
         result = host->config.transport
                      ->open_stream(host->transport, conn->transport_conn, &transport_stream);
